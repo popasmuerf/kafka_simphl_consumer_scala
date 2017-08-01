@@ -1,0 +1,21 @@
+products:
+   src/main/scala/Driver.scala -> build/classes/main/Driver$$anonfun$main$1.class
+   src/main/scala/Driver.scala -> build/classes/main/Driver$.class
+   src/main/scala/Driver.scala -> build/classes/main/Driver.class
+   src/main/scala/PFSenseParser.scala -> build/classes/main/PFSenseParser$.class
+   src/main/scala/PFSenseParser.scala -> build/classes/main/PFSenseParser.class
+binary dependencies:
+   src/main/scala/Driver.scala -> /home/mikeyb/.gradle/caches/modules-2/files-2.1/org.apache.kafka/kafka-clients/0.11.0.0/8f51f9b62923a1b35e31b613020ea5ef7df27d8f/kafka-clients-0.11.0.0.jar
+   src/main/scala/Driver.scala -> /home/mikeyb/.gradle/caches/modules-2/files-2.1/org.scala-lang/scala-library/2.11.8/ddd5a8bced249bedd86fb4578a39b9fb71480573/scala-library-2.11.8.jar
+   src/main/scala/Driver.scala -> /usr/lib/jvm/java-8-oracle/jre/lib/rt.jar
+   src/main/scala/PFSenseParser.scala -> /home/mikeyb/.gradle/caches/modules-2/files-2.1/org.scala-lang/scala-library/2.11.8/ddd5a8bced249bedd86fb4578a39b9fb71480573/scala-library-2.11.8.jar
+   src/main/scala/PFSenseParser.scala -> /usr/lib/jvm/java-8-oracle/jre/lib/rt.jar
+source dependencies:
+   src/main/scala/Driver.scala -> src/main/scala/PFSenseParser.scala
+external dependencies:
+class names:
+   src/main/scala/Driver.scala -> Driver
+   src/main/scala/Driver.scala -> Driver$
+   src/main/scala/Driver.scala -> Driver$$anonfun$main$1
+   src/main/scala/PFSenseParser.scala -> PFSenseParser
+   src/main/scala/PFSenseParser.scala -> PFSenseParser$
