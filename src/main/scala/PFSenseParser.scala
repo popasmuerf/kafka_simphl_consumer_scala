@@ -5,9 +5,15 @@ import java.util.Map;
 
 /**
   * Created by mikeyb on 7/31/17.
+  *
+  * mdtsdb-1.fractal:8080
+    mdtsdb-2.fractal:8080
+    mdtsdb-3.fractal:8080
+    mdtsdb-4.fractal:8080
+    mdtsdb-5.fractal:8080
   */
 object PFSenseParser {
-  def parseRecord(record:String):Option[String]= {
+  def parseRecordToStr(record:String):Option[String]= {
     var lineNumber = 1
     val dayPttrn = "(^\\w{3}\\s{1}\\d{1,2})".r //day pattern
     val timePttrn = "\\d{2}:\\d{2}:\\d{2}".r //time pattern
@@ -35,6 +41,33 @@ object PFSenseParser {
     if (recordStr != None) {
       println(recordStr.get)
       return recordStr
+    }
+    else {
+      println(":::bad log record:::")
+      return None
+    }
+  }
+  def parseRecordToMap(record:String):Option[java.util.Map[String,String]] = {
+    val dayPttrn = "(^\\w{3}\\s{1}\\d{1,2})".r //day pattern
+    val timePttrn = "\\d{2}:\\d{2}:\\d{2}".r //time pattern
+    val dateTimePttrn = "\\w{3}\\s{1}\\d{1,2}\\s\\d{2}:\\d{2}:\\d{2}".r //nix -- DayTime
+    val ipAddrPttrn = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}".r //ipAddr
+    val portPttrn = ",(6553[0-5]|655[0-2][0-9]\\d|65[0-4](\\d){2}|6[0-4](\\d){3}|[1-5](\\d){4}|[1-9](\\d){0,3}){2}".r
+    val actionPttrn = "pass|block|drop|dropped".r
+    val protocolPttrn = "tcp|udp|igmp|icmp".r
+
+
+    val day: Option[String] = dayPttrn.findFirstIn(record)
+    val time: Option[String] = timePttrn.findFirstIn(record)
+    val dateTime: Option[String] = dateTimePttrn.findFirstIn(record)
+    var ipAddress = Option(ipAddrPttrn.findAllIn(record).toList)
+    val port: Option[List[String]] = Option(portPttrn.findAllIn(record).toList)
+    val action: Option[String] = actionPttrn.findFirstIn(record)
+    val protocol: Option[String] = protocolPttrn.findFirstIn(record)
+    val recordMap: Option[util.Map[String, String]] = getParsedRecMap(day, time, dateTime, ipAddress, port, action, protocol)
+    if (recordMap != None) {
+      println(recordMap.get.toString)
+      return recordMap
     }
     else {
       println(":::bad log record:::")
@@ -87,26 +120,24 @@ object PFSenseParser {
     protocol.map( _ => {recordStr += " " ; recordStr += protocol.get})
     Option(recordStr)
   }
-  def getParsedRecMap(day:Option[String],time:Option[String],dateTime:Option[String],ipAddress:Option[List[String]],port:Option[List[String]],action:Option[String],protocol:Option[String]):java.util.Map[String,String] ={
+  def getParsedRecMap(day:Option[String],time:Option[String],dateTime:Option[String],ipAddress:Option[List[String]],port:Option[List[String]],action:Option[String],protocol:Option[String]):Option[java.util.Map[String,String]] ={
     var recordMap:java.util.Map[String,String] = new util.HashMap[String,String]()
-    recordMap.put("day",day.get)
-    recordMap.put("time",time.get)
-    recordMap.put("dateTime",dateTime.get)
-    recordMap.put("ipAddress",ipAddress.get.toString())
-    val ipSeq: Seq[String] = ipAddress.get
-    val ip0Str = ipSeq(0)
-    val ip1Str = ipSeq(1)
-    recordMap.put("ipSend","ip0Str")
-    recordMap.put("ipRecv","ip1Str")
-    val portSeq = port.get
-    val portClient  = portSeq(0)
-    val portServer = portSeq(1)
-    recordMap.put("portClient",portClient)
-    recordMap.put("portServer",portServer)
-    recordMap.put("action",action.get)
-    recordMap.put("protocol",protocol.get)
-    recordMap
+    day.map( _ => recordMap.put("day", day.get ))
+    time.map( _  => recordMap.put("time", time.get ))
+    dateTime.map( _ =>  recordMap.put("dateTime", dateTime.get ))
+    ipAddress.foreach(_ => {
+      val ipList = ipAddress.get
+      if(ipList.length < 2 ){return None}
+      recordMap.put("ipSend",ipList(0))
+      recordMap.put("ipRecv",ipList(1))
+    })
+    port.foreach(_ => {
+      val portList = port.get
+      recordMap.put("portSend",portList(portList.length - 3 ))
+      recordMap.put("ipRecv",portList(portList.length - 2 ))
+    })
+    action.map( _ =>   recordMap.put("ation", action.get ))
+    protocol.map( _  => recordMap.put("protocol", protocol.get))
+    Option(recordMap)
   }
-
-
 }
