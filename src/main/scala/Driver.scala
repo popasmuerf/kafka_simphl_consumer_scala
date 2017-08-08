@@ -2,7 +2,8 @@ import java.util
 import java.util.Properties
 import scala.collection.JavaConversions._
 import org.apache.kafka.clients.consumer.{ConsumerRecords, KafkaConsumer}
-import spray.json.DefaultJsonProtocol
+
+
 
 /**
   * Created by mikeyb on 7/31/17.
