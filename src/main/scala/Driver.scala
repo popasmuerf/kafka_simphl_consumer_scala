@@ -2,6 +2,9 @@ import java.util
 import java.util.Properties
 
 import com.fractal.mdtsdb.client.api.Parse
+import com.fractal.mdtsdb.client
+import com.fractal.mdtsdb.api.MdtsdbClient
+import com.google.gson.JsonObject
 
 import scala.collection.JavaConversions._
 import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, KafkaConsumer}
@@ -35,15 +38,22 @@ object Driver {
     props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer")
     var consumer: KafkaConsumer[String, String] = new KafkaConsumer[String,String](props)
     consumer.subscribe(util.Arrays.asList(topic))
-    val mdtsdbClient = PFsenseMTSDBCLient.getClientDefault("mdtsdb-5.fractal","masterKey","masterSecret",false)
-    val mdtsdbUserResp = PFsenseMTSDBCLient.createUser("mdb",mdtsdbClient)
-    val userRes = new Parse(mdtsdbUserResp)
-    val admKey:String = userRes.getKey
-    val secretKey:String = userRes.getSecretKey
-    val mdtsdbAdmClient = PFsenseMTSDBCLient.createAdminClient(admKey,secretKey,mdtsdbClient)
-    val swimlaneProps = mdtsdbAdmClient.newAppkey("mdb")
-    var swimlanePropsRes = new Parse(swimlaneProps)
 
+    //****************MTSDB Build Client******************//
+    val debugFlag:Boolean = false
+    //1. Created a user client
+    var superClient:MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(debugFlag)
+    //2. Create new user using super-user client
+    val userDetails:String = "mdb"
+    val resp:JsonObject = superClient.newAdminKey(userDetails)
+    val res:String = new Parse(resp)
+    if(!res.isOk()){
+        printl(">>>>Error Creating mtsdb user : %s\n")
+        sys.exit(-1)
+    }
+
+
+    //****************MTSDB Build Client End***************//
     while(true){
       val records: ConsumerRecords[String, String] = consumer.poll(1)
         for(record <- records){
@@ -51,7 +61,7 @@ object Driver {
           //PFSenseParser.parseRecordToStr(record.value())
           //val recordValue: String = record.value()
           val recordMap: Option[util.Map[String, String]] = PFSenseParser.parseRecordToMap(record.value())
-
+          println(recordMap.toString)
         }
       }
     }
