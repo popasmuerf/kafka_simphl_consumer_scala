@@ -15,11 +15,11 @@ import java.util.Map;
 object PFSenseParser {
   def parseRecordToStr(record:String):Option[String]= {
     var lineNumber = 1
-    val dayPttrn = "(^\\w{3}\\s{1}\\d{1,2})".r //day pattern
+    val dayPttrn = "\\w{1,3}\\s+\\d".r //day pattern
     val timePttrn = "\\d{2}:\\d{2}:\\d{2}".r //time pattern
-    val dateTimePttrn = "\\w{3}\\s{1}\\d{1,2}\\s\\d{2}:\\d{2}:\\d{2}".r //nix -- DayTime
+    val dateTimePttrn = "\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2}".r //nix -- DayTime
     val ipAddrPttrn = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}".r //ipAddr
-    val portPttrn = ",(6553[0-5]|655[0-2][0-9]\\d|65[0-4](\\d){2}|6[0-4](\\d){3}|[1-5](\\d){4}|[1-9](\\d){0,3}){2}".r
+    val portPttrn = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\,\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\,(6553[0-5]|655[0-2][0-9]\\d|65[0-4](\\d){2}|6[0-4](\\d){3}|[1-5](\\d){4}|[1-9](\\d){0,3}){2}\\,\\d{1,5}\\d{1,5}".r
     val actionPttrn = "pass|block|drop|dropped".r
     val protocolPttrn = "tcp|udp|igmp|icmp".r
 
@@ -48,20 +48,23 @@ object PFSenseParser {
     }
   }
   def parseRecordToMap(record:String):Option[java.util.Map[String,String]] = {
-    val dayPttrn = "(^\\w{3}\\s{1}\\d{1,2})".r //day pattern
+    var lineNumber = 1
+    val dayPttrn = "\\w{1,3}\\s+\\d".r //day pattern
     val timePttrn = "\\d{2}:\\d{2}:\\d{2}".r //time pattern
-    val dateTimePttrn = "\\w{3}\\s{1}\\d{1,2}\\s\\d{2}:\\d{2}:\\d{2}".r //nix -- DayTime
+    val dateTimePttrn = "\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2}".r //nix -- DayTime
     val ipAddrPttrn = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}".r //ipAddr
-    val portPttrn = ",(6553[0-5]|655[0-2][0-9]\\d|65[0-4](\\d){2}|6[0-4](\\d){3}|[1-5](\\d){4}|[1-9](\\d){0,3}){2}".r
+    val portPttrn = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\,\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\,(6553[0-5]|655[0-2][0-9]\\d|65[0-4](\\d){2}|6[0-4](\\d){3}|[1-5](\\d){4}|[1-9](\\d){0,3}){2}\\,\\d{1,5}\\d{1,5}".r
     val actionPttrn = "pass|block|drop|dropped".r
     val protocolPttrn = "tcp|udp|igmp|icmp".r
+
 
 
     val day: Option[String] = dayPttrn.findFirstIn(record)
     val time: Option[String] = timePttrn.findFirstIn(record)
     val dateTime: Option[String] = dateTimePttrn.findFirstIn(record)
     var ipAddress = Option(ipAddrPttrn.findAllIn(record).toList)
-    val port: Option[List[String]] = Option(portPttrn.findAllIn(record).toList)
+    //val port: Option[List[String]] = Option(portPttrn.findAllIn(record).toList)
+    val port: Option[String] = portPttrn.findFirstIn(record)
     val action: Option[String] = actionPttrn.findFirstIn(record)
     val protocol: Option[String] = protocolPttrn.findFirstIn(record)
     val recordMap: Option[util.Map[String, String]] = getParsedRecMap(day, time, dateTime, ipAddress, port, action, protocol)
@@ -120,7 +123,7 @@ object PFSenseParser {
     protocol.map( _ => {recordStr += " " ; recordStr += protocol.get})
     Option(recordStr)
   }
-  def getParsedRecMap(day:Option[String],time:Option[String],dateTime:Option[String],ipAddress:Option[List[String]],port:Option[List[String]],action:Option[String],protocol:Option[String]):Option[java.util.Map[String,String]] ={
+  def getParsedRecMap(day:Option[String],time:Option[String],dateTime:Option[String],ipAddress:Option[List[String]],port:Option[String],action:Option[String],protocol:Option[String]):Option[java.util.Map[String,String]] ={
     var recordMap:java.util.Map[String,String] = new util.HashMap[String,String]()
     day.map( _ => recordMap.put("day", day.get ))
     time.map( _  => recordMap.put("time", time.get ))
@@ -131,12 +134,21 @@ object PFSenseParser {
       recordMap.put("ipSend",ipList(0))
       recordMap.put("ipRecv",ipList(1))
     })
+    /*
     port.foreach(_ => {
       val portList = port.get
       recordMap.put("portSend",portList(portList.length - 3 ))
       recordMap.put("ipRecv",portList(portList.length - 2 ))
     })
-    action.map( _ =>   recordMap.put("ation", action.get ))
+    */
+    port.map( _ => {
+      val strLst: Array[String] = port.get.split(",")
+      val clientPort: String = strLst(2).replaceAll("""(?m)\s+$""", "")
+      val serverPort: String = strLst(3).replaceAll("""(?m)\s+$""", "")
+      recordMap.put("clientPort",clientPort)
+      recordMap.put("serverPort",serverPort)
+    })
+    action.map( _ =>   recordMap.put("action", action.get ))
     protocol.map( _  => recordMap.put("protocol", protocol.get))
     Option(recordMap)
   }
