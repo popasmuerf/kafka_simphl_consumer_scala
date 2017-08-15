@@ -54,8 +54,9 @@ object Driver {
 
 
     //***************Declaring MTSDB Stuff******************//
-    var mtsdbAppKey = null
-    var mtsdbAdminKey = null
+    var mtsdbAppKey:String  = null
+    var mtsdbAdminKey:String = null
+    var mtsdbAdminSecretKey:String = null
     var mtsdbAppClient: MdtsdbClient = null
 
 
@@ -75,7 +76,8 @@ object Driver {
         println("*********document exists******************")
         println("**********grabbing appKey for PFsense Net Traffic*****************")
         var appKey = document.get("mdtsdbAppKey").toString
-        var appAdminKey = document.get("mdtsdbAdminKey").toString
+        var appAdminKey: String = document.get("mdtsdbAdminKey").toString
+        var appSecretKey: String = document.get("mdtsdbSecretKey").toString
         if (appKey == null || appAdminKey == null) {
           println("**********No appKey***********")
           println("**********SwimLane doesn't exist for PFSense Net Traffic**********")
@@ -105,41 +107,41 @@ object Driver {
           val swimlaneSecretKey: String = swimlanePropsRes.getSecretKey()
           val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
           mtsdbAppClient = swimlaneClient
+          mtsdbAppKey =swimlaneAppKey
+          mtsdbAdminSecretKey = swimlaneSecretKey
+
           //********don't forget to place the keys's (admin and app) into the document for later use********//
           var docIdObject: BasicDBObject = new BasicDBObject("_id",bsonObjId)
           var appKeyUpdateObj: BasicDBObject = new BasicDBObject("mdtsdbAppKey",swimlaneAppKey)
+          var secretKeyUpdateObj: BasicDBObject = new BasicDBObject("mdtsdbSecretKey", swimlaneSecretKey)
           var adminKeyUpdateObj: BasicDBObject = new BasicDBObject("mdtsdbAdminKey",admKey)
           var updateAppKeyObj = new BasicDBObject("$set",appKeyUpdateObj)
           var updateAdminKeyObj = new BasicDBObject("$set",adminKeyUpdateObj)
+          var updateSecretKeyObj = new BasicDBObject("$set",secretKeyUpdateObj)
           mongoDatabase.getCollection("network_syslog").updateOne(docIdObject,appKeyUpdateObj)
           mongoDatabase.getCollection("network_syslog").updateOne(docIdObject,adminKeyUpdateObj)
-
-
+          mongoDatabase.getCollection("network_syslog").updateOne(docIdObject,secretKeyUpdateObj)
         } else {
           println("*************Get appKey for PFsense Net Traffic appKey**************")
-          println("appKey: " + appKey.toString)
-          println("appAdminKey: " + appAdminKey.toString)
+          println("appKey: " + appKey)
+          println("appAdminKey: " + appAdminKey)
+          println("appSecretKey: " + appSecretKey)
           println("*************Pulling up associated swimlane from MTSDB**************")
+          println("*************Get superAdmClient from MTSDB  using MdtsdbCredentials.createClientFromMasterProperties()**************")
+          var enableDebugOutput: Boolean = false
+          val swimlaneAppKey: String = appKey
+          val swimlaneAdminKey: String = appAdminKey
+          val swimlaneSecretKey:String = appSecretKey
+          //MdtsdbClient(String tsAppKey, String tsAdmKey, String tsSecretKey, boolean useSSL)
+          val swimlaneClient = new MdtsdbClient(swimlaneAppKey,swimlaneAdminKey,swimlaneSecretKey,false)
+          mtsdbAppClient=swimlaneClient
+
         }
       }
       mongoClient.close()
     } catch {
       case e: UnknownError => e.printStackTrace()
     }
-
-
-    //***************Setting up Sensor************//
-    var sensorObj: Measurement = new Measurement()
-    var unixTime: Long = System.currentTimeMillis()
-    var sensorDataJson = sensorObj.sensor(0).field("date","Nov 1st, 2098")
-      .field("action","dropped")
-      .field("port","53")
-      .field("protocol","upd").time(unixTime).build()
-
-    val statusJsonObj = mtsdbAppClient.sendStreamingData(sensorDataJson)
-
-
-
 
     //****************Getting Stuff from Kafka***************//
 
@@ -151,7 +153,7 @@ object Driver {
           //val recordValue: String = record.value()
           val recordMap: Option[util.Map[String, String]] = PFSenseParser.parseRecordToMap(record.value())
           if(recordMap.get != None)
-            insertIntoSwimLane(mtsdbAppClient,recordMap.get)
+            println(recordMap.get.toString())//insertIntoSwimLane(mtsdbAppClient,recordMap.get)
           else
             println("Got back a back record that did'nt conform to nettraffic regex....")
           //println(recordMap.toString)
