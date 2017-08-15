@@ -28,8 +28,7 @@ object Driver {
   val group = "pfsenseGroup"
   def main(args:Array[String]): Unit = {
 
-
-
+    ///************* Set properties required to consume msgs from Kafka *********************//
     var props:Properties = new Properties()
     props.put("bootstrap.servers", "localhost:9092")
     //props.put("bootstrap.servers","broker-0.kafka.mesos:9092,broker-1.kafka.mesos:9092,broker-2.kafka.mesos:9092")
@@ -45,7 +44,7 @@ object Driver {
 
 
     //****************Declaring Mongo Stuff******************//
-    val bsonObjId = new ObjectId("598cc1ab60481f26d6b8a2f6")
+    val bsonObjId = new ObjectId("598cc1ab60481f26d6b8a2f6") //this is the documentID.  We should put this into a config file
     var mongoClient: MongoClient = null
     var collection: util.Collection[Document] = null
     var mongoDatabase: MongoDatabase = null
@@ -140,8 +139,10 @@ object Driver {
     val statusJsonObj = mtsdbAppClient.sendStreamingData(sensorDataJson)
 
 
+
+
     //****************Getting Stuff from Kafka***************//
-    /*
+
     while(true){
       val records: ConsumerRecords[String, String] = consumer.poll(1)
         for(record <- records){
@@ -149,21 +150,16 @@ object Driver {
           //PFSenseParser.parseRecordToStr(record.value())
           //val recordValue: String = record.value()
           val recordMap: Option[util.Map[String, String]] = PFSenseParser.parseRecordToMap(record.value())
+          if(recordMap.get != None)
+            insertIntoSwimLane(mtsdbAppClient,recordMap.get)
+          else
+            println("Got back a back record that did'nt conform to nettraffic regex....")
           //println(recordMap.toString)
         }
       }
-      */
+
   }//end of Driver.main()
 
-
-
-
-
-
-
-  def chickIfSLaneLives(): Boolean = {
-    false
-  }
 
   def selectMTSDBHost(): String = {
     val mdtsdb1: String = "mdtsdb-1.fractal:8080"
@@ -188,6 +184,31 @@ object Driver {
       socket.isBound()
     } catch {
       case e: UnknownError => println("Error...could not verify MTSDB is up..."); false
+    }
+  }
+
+  def checkSwimLane(client:MdtsdbClient, appkey:String): Boolean = {
+    var reponseJsonObj: JsonObject =  client.reportAppkey()
+    var responseParsed = new Parse(reponseJsonObj)
+    var key: String = responseParsed.getAppKey
+    if(!key.equals(appkey)){
+      return false
+    }else{
+      return true
+    }
+  }
+  def createSwimLane(client: MdtsdbClient): Unit ={
+
+  }
+  def insertIntoSwimLane(client:MdtsdbClient,map:java.util.Map[String,String]): Unit ={
+    val keyList: Array[AnyRef] = map.keySet().toArray()
+    val valList: Array[AnyRef] = map.values().toArray()
+
+    var unixTime:Long = System.currentTimeMillis()/1000L
+    var sensorData: Measurement = new Measurement()
+    val mapLength = map.size()
+    for(i <- 0 to  (mapLength - 1)  ){
+      sensorData.sensor(i).field(keyList(i).toString,valList(i).toString)
     }
   }
 
