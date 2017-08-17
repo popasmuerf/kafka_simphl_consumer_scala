@@ -38,6 +38,7 @@ binary dependencies:
    src/main/scala/Driver.scala -> /Users/mdb/.gradle/caches/modules-2/files-2.1/com.google.code.gson/gson/2.8.1/2a8e0aa38a2e21cb39e2f5a7d6704cbdc941da0/gson-2.8.1.jar
    src/main/scala/Driver.scala -> /Users/mdb/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/23.0/c947004bb13d18182be60077ade044099e4f26f1/guava-23.0.jar
    src/main/scala/Driver.scala -> /Users/mdb/.gradle/caches/modules-2/files-2.1/org.apache.kafka/kafka-clients/0.11.0.0/8f51f9b62923a1b35e31b613020ea5ef7df27d8f/kafka-clients-0.11.0.0.jar
+   src/main/scala/Driver.scala -> /Users/mdb/.gradle/caches/modules-2/files-2.1/org.ini4j/ini4j/0.5.4/4a3ee4146a90c619b20977d65951825f5675b560/ini4j-0.5.4.jar
    src/main/scala/Driver.scala -> /Users/mdb/.gradle/caches/modules-2/files-2.1/org.mongodb/mongo-java-driver/3.4.2/5d0448606f5f7f3974dbae69c4ccfffe214ae60d/mongo-java-driver-3.4.2.jar
    src/main/scala/Driver.scala -> /Users/mdb/.gradle/caches/modules-2/files-2.1/org.scala-lang/scala-library/2.11.8/ddd5a8bced249bedd86fb4578a39b9fb71480573/scala-library-2.11.8.jar
    src/main/scala/Driver.scala -> /Users/mdb/.sdkman/candidates/java/8u131-zulu/jre/lib/rt.jar

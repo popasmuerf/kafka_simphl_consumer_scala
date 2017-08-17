@@ -1,0 +1,106 @@
+try {
+      mongoClient = new MongoClient("mongodb.fractal", 27017)
+      mongoDatabase = mongoClient.getDatabase("conmon-db")
+      network_syslog_coll = mongoDatabase.getCollection("network_syslog")
+      val basicDBObject = new BasicDBObject()
+      basicDBObject.append("_id", bsonObjId)
+      var dbCursor = network_syslog_coll.find(basicDBObject)
+      val document: Document = dbCursor.first()
+      if (document == null) {
+        println("*********document is null****************")
+        println("Error...exiting program....")
+        sys.exit(-1)
+      } else {
+        println("*********document exists******************")
+        println("**********grabbing appKey for PFsense Net Traffic*****************")
+        var appKey = document.get("mdtsdbAppKey").toString
+        var appAdminKey: String = document.get("mdtsdbAdminKey").toString
+        var appSecretKey: String = document.get("mdtsdbSecretKey").toString
+        if (appKey == null || appAdminKey == null) {
+          println("**********No appKey***********")
+          println("**********SwimLane doesn't exist for PFSense Net Traffic**********")
+          println("**********Creating appKey using MTSDBAdminClient*******************")
+          var enableDebugOutput: Boolean = false
+          val superAdmClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
+          val admKeyResponse: JsonObject = superAdmClient.newAdminkey("pfsense_nettraffic") //new user and assoc. adminkey Resp
+          val admKeyRes: Parse = new Parse(admKeyResponse)
+          if (!admKeyRes.isOk()) {
+            println("error...could not get admKeyResponse...something is wrong")
+            sys.exit(-1)
+          }
+          val admKey: String = admKeyRes.getKey()
+          val admSecretKey: String = admKeyRes.getSecretKey()
+          val userDescription: String = admKeyRes.getUser()//user description
+          val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(admKey,admSecretKey)
+          println("user description: " + userDescription )
+          println("Created a new userAdminClient for + : " + userDescription)
+          val swimlanePropsResp: JsonObject = userAdminClient.newAppkey(userDescription)
+          val swimlanePropsRes: Parse = new Parse(swimlanePropsResp)
+          if (!swimlanePropsRes.isOk()) {
+            println("error...could not create SwimLanes for PFsense net traffic...something is wrong")
+            sys.exit(-1)
+          }
+          */
+          /*
+          println("Creating swimlane client.... ")
+          val swimlaneAppKey: String = swimlanePropsRes.getKey()
+          val swimlaneSecretKey: String = swimlanePropsRes.getSecretKey()
+          val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
+          mtsdbAppClient = swimlaneClient
+          mtsdbAppKey =swimlaneAppKey
+          mtsdbAdminSecretKey = swimlaneSecretKey
+          */
+          //********don't forget to place the keys's (admin and app) into the document for later use********//
+          /*
+          var docIdObject: BasicDBObject = new BasicDBObject("_id",bsonObjId)
+          var appKeyUpdateObj: BasicDBObject = new BasicDBObject("mdtsdbAppKey",swimlaneAppKey)
+          var secretKeyUpdateObj: BasicDBObject = new BasicDBObject("mdtsdbSecretKey", swimlaneSecretKey)
+          var adminKeyUpdateObj: BasicDBObject = new BasicDBObject("mdtsdbAdminKey",admKey)
+          var updateAppKeyObj = new BasicDBObject("$set",appKeyUpdateObj)
+          var updateAdminKeyObj = new BasicDBObject("$set",adminKeyUpdateObj)
+          var updateSecretKeyObj = new BasicDBObject("$set",secretKeyUpdateObj)
+          mongoDatabase.getCollection("network_syslog").updateOne(docIdObject,appKeyUpdateObj)
+          mongoDatabase.getCollection("network_syslog").updateOne(docIdObject,adminKeyUpdateObj)
+          mongoDatabase.getCollection("network_syslog").updateOne(docIdObject,secretKeyUpdateObj)
+          */
+        } else {
+          /*
+          println("*************Get appKey for PFsense Net Traffic appKey**************")
+          println("appKey: " + appKey)
+          println("appAdminKey: " + appAdminKey)
+          println("appSecretKey: " + appSecretKey)
+          println("*************Pulling up associated swimlane from MTSDB**************")
+          println("*************Get superAdmClient from MTSDB  using MdtsdbCredentials.createClientFromMasterProperties()**************")
+          var enableDebugOutput: Boolean = false
+          val swimlaneAppKey: String = appKey
+          val swimlaneAdminKey: String = appAdminKey
+          val swimlaneSecretKey:String = appSecretKey
+          //MdtsdbClient(String tsAppKey, String tsAdmKey, String tsSecretKey, boolean useSSL)
+          val swimlaneClient = new MdtsdbClient(swimlaneAppKey,swimlaneAdminKey,swimlaneSecretKey,false)
+          mtsdbAppClient=swimlaneClient
+          */
+        }
+      }
+      mongoClient.close()
+    } catch {
+      case e: UnknownError => e.printStackTrace()
+    }
+
+    //****************Getting Stuff from Kafka***************//
+
+    while(true){
+      val records: ConsumerRecords[String, String] = consumer.poll(1)
+        for(record <- records){
+          //println(record.value())
+          //PFSenseParser.parseRecordToStr(record.value())
+          //val recordValue: String = record.value()
+          val recordMap: Option[util.Map[String, String]] = PFSenseParser.parseRecordToMap(record.value())
+          if(recordMap != None) {
+            println(recordMap.get.toString())
+            insertIntoSwimLane(mtsdbAppClient, recordMap.get)
+          }
+          else
+            println("Got back a back record that did'nt conform to nettraffic regex....")
+          //println(recordMap.toString)
+        }
+      }

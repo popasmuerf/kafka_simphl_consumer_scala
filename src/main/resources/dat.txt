@@ -1,0 +1,8 @@
+[keys]
+admin = eH7G4ZwxBfZPzS
+app = TUxIhiJcxd
+secret = NeL2Czr9G9TMHP
+[mongo]
+database = null
+collection = null
+object_id = null
