@@ -30,7 +30,7 @@ object Driver {
   val topic = "pfsense"
   //val topic = "conmon-host-logs"
   val group = "pfsenseGroup"
-  val userInfo = "pfsense_nettraffic_test8"
+  val userInfo = "pfsense_nettraffic_test11"
   def main(args:Array[String]): Unit = {
 
     ///************* Set properties required to consume msgs from Kafka *********************//
@@ -79,14 +79,14 @@ object Driver {
       val swimLaneStuffTuple: (Any, Any, Any,Any) = createSwimLaneClient()
       val swimlaneClient =  swimLaneStuffTuple._1.asInstanceOf[MdtsdbClient]
       val swimlaneAppKey = swimLaneStuffTuple._2.asInstanceOf[String]
-      println("swimlaneAppKey : " + swimlaneAppKey )
+      //println("swimlaneAppKey : " + swimlaneAppKey )
       val swimlaneAdminKey = swimLaneStuffTuple._3.asInstanceOf[String]
-      println("swimlaneAdminKey : " + swimlaneAdminKey)
+      //println("swimlaneAdminKey : " + swimlaneAdminKey)
       val swimlaneSecretKey = swimLaneStuffTuple._4.asInstanceOf[String]
-      println("swimlaneSecretKey : " + swimlaneSecretKey)
+      //println("swimlaneSecretKey : " + swimlaneSecretKey)
       //Write keys to file
       //writeKeysToFile(swimlaneAppKey:String,swimlaneAdminKey:String,swimlaneSecretKey:String,docObjectIdStr:String, mongoClient: MongoClient ): Unit ={
-      writeKeysToFile(swimlaneAppKey,swimlaneAdminKey,swimlaneSecretKey)
+      //writeKeysToFile(swimlaneAppKey,swimlaneAdminKey,swimlaneSecretKey)
       }else{
         println("Just checked the config file...and we have a swimlane....")
         println("So let's just get our swimlane client.......")
@@ -163,17 +163,20 @@ object Driver {
     println("**********SwimLane doesn't exist for PFSense Net Traffic**********")
     println("**********Creating appKey using MTSDBAdminClient*******************")
     var enableDebugOutput: Boolean = false
-    val superAdmClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
-    val admKeyResponse: JsonObject = superAdmClient.newAdminkey(userInfo) //new user and assoc. adminkey Resp
+    //val superAdmClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
+    val superAdminClient: MdtsdbClient = new MdtsdbClient("mdtsdb-5.fractal",8080, "", "IkwCmcm3bbPcML", "Ruio4Np5kOa5CT", false)
+    val admKeyResponse: JsonObject = superAdminClient.newAdminkey(userInfo) //new user and assoc. adminkey Resp
     val admKeyRes: Parse = new Parse(admKeyResponse)
     if (!admKeyRes.isOk()) {
       println("error...could not get admKeyResponse...something is wrong")
       sys.exit(-1)
     }
     val admKey: String = admKeyRes.getKey()
+    println("This is my admKey: " + admKey)
     val admSecretKey: String = admKeyRes.getSecretKey()
+    println("This is my admKeySecretKey: " + admSecretKey)
     val userDescription: String = admKeyRes.getUser()//user description
-    val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(admKey,admSecretKey)
+    val userAdminClient: MdtsdbClient = superAdminClient.newAdmClient(admKey,admSecretKey)
     println("user description: " + userDescription )
     println("Created a new userAdminClient for + : " + userDescription)
     val swimlanePropsResp: JsonObject = userAdminClient.newAppkey(userDescription)
@@ -184,7 +187,9 @@ object Driver {
     }
     println("Creating swimlane client.... ")
     val swimlaneAppKey: String = swimlanePropsRes.getKey()
+    println("This is my swimlaneAppKey: " + swimlaneAppKey)
     val swimlaneSecretKey: String = swimlanePropsRes.getSecretKey()
+    println("This is my swimlaneSecretKey: " + swimlaneSecretKey)
     val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
     return(swimlaneClient,swimlaneAppKey,admKey,swimlaneSecretKey)
 
@@ -195,10 +200,10 @@ object Driver {
     println("**********We can by-pass creating them**********")
     println("**********we just need to create an MTSDBAdminClient*******************")
     var enableDebugOutput: Boolean = false
-    val superAdminClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
+    //val superAdminClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
+    val superAdminClient: MdtsdbClient = new MdtsdbClient("mdtsdb-5.fractal",8080, "", "IkwCmcm3bbPcML", "Ruio4Np5kOa5CT", false)
     val swimlaneClient: MdtsdbClient = superAdminClient.newAdmClient(swimlaneAppKey,swimLaneSecretKey)
     return swimlaneClient
-
     //val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
   }
 
@@ -237,7 +242,6 @@ object Driver {
         var appSecretKey: String = document.get("mdtsdbSecretKey").toString
         return (appKey,appAdminKey,appSecretKey)
       }
-
   }
   def createSwimLane(): Tuple3[Any,Any,Any] ={
     var enableDebugOutput: Boolean = false
@@ -249,7 +253,9 @@ object Driver {
       sys.exit(-1)
     }
     val admKey: String = admKeyRes.getKey()
+    println("This is my adminKey: " + admKey)
     val admSecretKey: String = admKeyRes.getSecretKey()
+    println("This is my adminSecretKey: " + admSecretKey)
     val userDescription: String = admKeyRes.getUser()//user description
     val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(admKey,admSecretKey)
     println("user description: " + userDescription )
@@ -262,7 +268,9 @@ object Driver {
     }
     println("Creating swimlane client.... ")
     val swimlaneAppKey: String = swimlanePropsRes.getKey()
+    println("This is my swimlaneAppKey: " + swimlaneAppKey)
     val swimlaneSecretKey: String = swimlanePropsRes.getSecretKey()
+    println("this is my swimlaneSecretKey :" + swimlaneSecretKey )
     val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
     return (swimlaneClient, swimlaneAppKey,swimlaneSecretKey)
   }

@@ -1,7 +1,8 @@
 [keys]
-admin = eH7G4ZwxBfZPzS
-app = TUxIhiJcxd
-secret = NeL2Czr9G9TMHP
+admin = IkwCmcm3bbPcML
+admin_secret = Ruio4Np5kOa5CT
+app = JkPglj9mwO
+secret = kba1xd7Rh67Eow
 [mongo]
 database = null
 collection = null
