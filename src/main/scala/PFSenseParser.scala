@@ -128,7 +128,7 @@ object PFSenseParser {
     day.map( _ => recordMap.put("day", day.get ))
     time.map( _  => recordMap.put("time", time.get ))
     dateTime.map( _ =>  recordMap.put("dateTime", dateTime.get ))
-    ipAddress.foreach(_ => {
+    ipAddress.foreach( _ => {
       val ipList = ipAddress.get
       if(ipList.length < 2 ){return None}
       recordMap.put("ipSend",ipList(0))
