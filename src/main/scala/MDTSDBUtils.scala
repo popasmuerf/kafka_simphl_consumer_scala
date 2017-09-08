@@ -1,5 +1,3 @@
-package com.fractal.pfsense.etl.pfsense_nettraffic
-
 import java.io._
 import java.net.{InetSocketAddress, Socket}
 

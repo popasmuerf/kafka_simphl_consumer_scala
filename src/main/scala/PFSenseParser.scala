@@ -1,4 +1,3 @@
-package com.fractal.pfsense.etl.pfsense_nettraffic
 import java.util
 import java.util.HashMap
 import java.util.Map;
