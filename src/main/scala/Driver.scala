@@ -73,6 +73,8 @@ object Driver {
     val mdtsdbSecretKey = mdtsdbKeysTuple._3
     val mdtsdbAppClient: MdtsdbClient = MDTSDBUtils.createSwimLaneClient(mdtsdbAdminKey,mdtsdbAppKey, mdtsdbSecretKey)
     //****************Getting Stuff from Kafka***************//
+   // val slclient = MDTSDBUtils.createSwimLane()
+
 
 
     while(true){
@@ -91,6 +93,7 @@ object Driver {
           //println(recordMap.toString)
         }
       }
+
 
   }//end of Driver.main()
 

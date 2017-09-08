@@ -1,3 +1,5 @@
+package com.fractal.pfsense.etl.pfsense_nettraffic
+
 import java.io._
 import java.net.{InetSocketAddress, Socket}
 
@@ -14,7 +16,6 @@ import scala.util.matching.Regex
   * Created by mdb on 8/21/17.
   */
 object MDTSDBUtils {
-
 
   def selectMTSDBHost(): String = {
     val mdtsdb1: String = "mdtsdb-1.fractal:8080"
@@ -40,23 +41,29 @@ object MDTSDBUtils {
       case e: UnknownError => println("Error...could not verify MTSDB is up..."); false
     }
   }
-  def getKeysFromFile(): Tuple3[String,String,String] ={
-    var adminKey:String = null
-    var appKey:String = null
-    var secretKey:String = null
+  def getKeysFromFile(): Tuple6[String,String,String,String,String,String] ={
+    var mongoDocId:String = null
+    var name:String = null
+    var clAdmKey:String  = null
+    var clAdmSecretKey:String = null
+    var swlAppKey:String  = null
+    var swlSecretKey:String =null
+
     try {
-      val fileName = "dat.txt"
-      var classLoader: ClassLoader = getClass().getClassLoader()
-      var file: File = new File(classLoader.getResource(fileName).getFile())
-      var ini: Wini = new Wini(file)
-      var section: Profile.Section = ini.get("keys")
-      adminKey = section.get("admin")
-      appKey = section.get("app")
-      secretKey = section.get("secret")
+      val fileName = "main/resources/dat.txt"
+      val in = this.getClass().getClassLoader().getResourceAsStream(fileName)
+      val ini: Wini = new Wini(in)
+      val section: Profile.Section = ini.get("keys")
+      mongoDocId =  section.get("_id")
+      name = section.get("name")
+      clAdmKey  =  section.get("clAdmKey")
+      clAdmSecretKey = section.get("clAdmSecretKey")
+      swlAppKey = section.get("swlAppKey")
+      swlSecretKey = section.get("swlSecretKey")
     }catch{
       case e: UnknownError => println("Error...could not write keys to resource file...");
     }
-    return (appKey,adminKey,secretKey)
+    return (mongoDocId,name,clAdmKey,clAdmSecretKey,swlAppKey,swlSecretKey)
   }
   def getMongoDocIdFromFile(): String ={
     var docIdStr:String = null
@@ -136,40 +143,105 @@ object MDTSDBUtils {
     }
   }
   def createSwimLane(): Tuple3[Any,Any,Any] ={
+    val HTTP_HOST = "mdtsdb-4.fractal"
+    val HTTP_PORT = 8080
+    val SUPER_KEY = "Y2DQZRbhZ8DSoq5vu832UgxQfp6Iw/GLsnwBY/pVzSBRDBMBPFIV3MY6ZBbiAKjw"
+    val SUPER_SECRET = "R4wBIZ6/kFb3kjOC8QgM1X7AyFb2QXmyKmC23TZMYAn9VF7RBwlV"
+    val USE_SSL = false
+    val superClient=   new MdtsdbClient(HTTP_HOST, HTTP_PORT, "", SUPER_KEY, SUPER_SECRET, USE_SSL)
+    //create a new user from the super client
+    val userDetails = "pfsense_net_filter_traffic0"
+    val resp1 = superClient.newAdminkey(userDetails)
+    val res1 = new Parse(resp1)
+    println(s"Got response from MDTSDB: $resp1")
+    if(!res1.isOk){
+      println("Can't create new admin key: user already exists?") //very interesting...
+      System.exit(-1);
+    }
+    //get the keys to make an admin client
+    val clAdmKey = res1.getKey
+    val clSecretKey = res1.getSecretKey
+    println("admin key-secret " + clAdmKey + " " + clSecretKey)
+    val admClient = superClient.newAdmClient(clAdmKey,clSecretKey)
+    admClient.enableDebugOutput()
+    println("admClient " + clAdmKey + " " + clSecretKey)
+    //we have new adminstrator key ast this point
+    //we can start making swimlanes
+    val swimlaneUserDetails = "pfsense_net_filter_traffic0"
+    val swimlaneProps = admClient.newAppkey(swimlaneUserDetails,true,false)
+    val results = new Parse(swimlaneProps)
+
+    if(!results.isOk){
+      println("Cannot create a new swimlane (already exists?): " + results.getMessage)
+    }
+
+    //now we need to make a client for that swimlane
+    val clAppKey = results.getKey
+    val clAppSecretKey = results.getSecretKey()
+    val appClient = admClient.newClient(clAppKey,clAppSecretKey)
+    return (appClient, clAppKey,clAppSecretKey)  //all of the above seems to be in order
+  }
+  def createSwimLaneTest(): Tuple3[Any,Any,Any] ={
     var enableDebugOutput: Boolean = false
-    val superAdmClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
-    val admKeyResponse: JsonObject = superAdmClient.newAdminkey("pfsense_nettraffic") //new user and assoc. adminkey Resp
-    val admKeyRes: Parse = new Parse(admKeyResponse)
-    if (!admKeyRes.isOk()) {
+    val superAdmClient=   new MdtsdbClient("mdtsdb-4.fractal", 8080, "", "Y2DQZRbhZ8DSoq5vu832UgxQfp6Iw/GLsnwBY/pVzSBRDBMBPFIV3MY6ZBbiAKjw", "R4wBIZ6/kFb3kjOC8QgM1X7AyFb2QXmyKmC23TZMYAn9VF7RBwlV", false)
+    val superAdmKeyResponse:JsonObject = superAdmClient.newAdminkey("pfsense_net_filter_traffic_53")
+    val supAdmKeyResParsed: Parse = new Parse(superAdmKeyResponse)
+    if (!supAdmKeyResParsed.isOk()) {
       println("error...could not get admKeyResponse...something is wrong")
       sys.exit(-1)
     }
-    val admKey: String = admKeyRes.getKey()
-    println("This is my adminKey: " + admKey)
-    val admSecretKey: String = admKeyRes.getSecretKey()
-    println("This is my adminSecretKey: " + admSecretKey)
-    val userDescription: String = admKeyRes.getUser()//user description
-    val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(admKey,admSecretKey)
-    println("user description: " + userDescription )
-    println("Created a new userAdminClient for + : " + userDescription)
-    val swimlanePropsResp: JsonObject = userAdminClient.newAppkey(userDescription)
-    val swimlanePropsRes: Parse = new Parse(swimlanePropsResp)
-    if (!swimlanePropsRes.isOk()) {
+    val clAdmKey: String = supAdmKeyResParsed.getKey()
+    println("clAdmKey :" + clAdmKey)
+    val clAdmSecretKey: String =supAdmKeyResParsed.getSecretKey()
+    println("clAdmSecret :" + clAdmSecretKey)
+    val userDescription: String = supAdmKeyResParsed.getUser()
+    val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(clAdmKey,clAdmSecretKey)
+    //val swimlanePropsResp: JsonObject = userAdminClient.newAppkey("pfsense_nettraffic",true,true,"pfsense_nettraffic") //6. create sl Json Resp Obj
+    val swimlanePropsResp: JsonObject = userAdminClient.newAppkey("pfsense_net_filter_traffic_53")
+    val swimlanePropsResParsed: Parse = new Parse(swimlanePropsResp)
+    if (!swimlanePropsResParsed.isOk()) {
       println("error...could not create SwimLanes for PFsense net traffic...something is wrong")
       sys.exit(-1)
     }
     println("Creating swimlane client.... ")
-    val swimlaneAppKey: String = swimlanePropsRes.getKey()
-    println("This is my swimlaneAppKey: " + swimlaneAppKey)
-    val swimlaneSecretKey: String = swimlanePropsRes.getSecretKey()
-    println("this is my swimlaneSecretKey :" + swimlaneSecretKey )
-    val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
-    return (swimlaneClient, swimlaneAppKey,swimlaneSecretKey)
+    val swimlaneAppKey: String = swimlanePropsResParsed.getKey()  //7. Get swimlane app key
+    val swimlaneSecretKey: String = swimlanePropsResParsed.getSecretKey() //8. Get swimlane secret Key
+    val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)  //9. creates swimlane client using slapp and secret key
+    return (swimlaneClient, swimlaneAppKey,swimlaneSecretKey)  //all of the above seems to be in order
+  }
+  def createSwimLaneTest(swimlaneName:String): Tuple3[Any,Any,Any] ={
+    var enableDebugOutput: Boolean = false
+    val superAdmClient=   new MdtsdbClient("mdtsdb-4.fractal", 8080, "", "Y2DQZRbhZ8DSoq5vu832UgxQfp6Iw/GLsnwBY/pVzSBRDBMBPFIV3MY6ZBbiAKjw", "R4wBIZ6/kFb3kjOC8QgM1X7AyFb2QXmyKmC23TZMYAn9VF7RBwlV", false)
+    val superAdmKeyResponse:JsonObject = superAdmClient.newAdminkey(swimlaneName)
+    val supAdmKeyResParsed: Parse = new Parse(superAdmKeyResponse)
+    if (!supAdmKeyResParsed.isOk()) {
+      println("error...could not get admKeyResponse...something is wrong")
+      sys.exit(-1)
+    }
+    val clAdmKey: String = supAdmKeyResParsed.getKey()
+    println("clAdmKey :" + clAdmKey)
+    val clAdmSecretKey: String =supAdmKeyResParsed.getSecretKey()
+    println("clAdmSecret :" + clAdmSecretKey)
+    val userDescription: String = supAdmKeyResParsed.getUser()
+    val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(clAdmKey,clAdmSecretKey)
+    //val swimlanePropsResp: JsonObject = userAdminClient.newAppkey("pfsense_nettraffic",true,true,"pfsense_nettraffic") //6. create sl Json Resp Obj
+    val swimlanePropsResp: JsonObject = userAdminClient.newAppkey("pfsense_net_filter_traffic_53")
+    val swimlanePropsResParsed: Parse = new Parse(swimlanePropsResp)
+    if (!swimlanePropsResParsed.isOk()) {
+      println("error...could not create SwimLanes for PFsense net traffic...something is wrong")
+      sys.exit(-1)
+    }
+    println("Creating swimlane client.... ")
+    val swimlaneAppKey: String = swimlanePropsResParsed.getKey()  //7. Get swimlane app key
+    val swimlaneSecretKey: String = swimlanePropsResParsed.getSecretKey() //8. Get swimlane secret Key
+    val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)  //9. creates swimlane client using slapp and secret key
+    return (swimlaneClient, swimlaneAppKey,swimlaneSecretKey)  //all of the above seems to be in order
   }
   def createIpSwimLane(): Tuple3[Any,Any,Any] ={
+    var ipSwimLaneName:String = null
     var enableDebugOutput: Boolean = false
     val superAdmClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
-    val admKeyResponse: JsonObject = superAdmClient.newAdminkey("pfsense_nettraffic") //new user and assoc. adminkey Resp
+    val admKeyResponse: JsonObject = superAdmClient.newAdminkey("pfsense_net_filter_traffic_1") //new user and assoc. adminkey Resp
     val admKeyRes: Parse = new Parse(admKeyResponse)
     if (!admKeyRes.isOk()) {
       println("error...could not get admKeyResponse...something is wrong")
@@ -183,7 +255,8 @@ object MDTSDBUtils {
     val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(admKey,admSecretKey)
     println("user description: " + userDescription )
     println("Created a new userAdminClient for + : " + userDescription)
-    val swimlanePropsResp: JsonObject = userAdminClient.newAppkey(userDescription)
+    //val swimlanePropsResp: JsonObject = userAdminClient.newAppkey(userDescription)
+    val swimlanePropsResp = userAdminClient.newAppkey(ipSwimLaneName,true,true,ipSwimLaneName)
     val swimlanePropsRes: Parse = new Parse(swimlanePropsResp)
     if (!swimlanePropsRes.isOk()) {
       println("error...could not create SwimLanes for PFsense net traffic...something is wrong")
@@ -197,29 +270,82 @@ object MDTSDBUtils {
     val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
     return (swimlaneClient, swimlaneAppKey,swimlaneSecretKey)
   }
-  def createSwimLaneClient(swimlaneAdminKey:String,swimlaneAppKey:String,swimLaneSecretKey:String): MdtsdbClient ={
+  def createSwimLaneClientTest(clAdmKey:String,clSecretKey:String,slAppKey:String,slSecretKey:String): MdtsdbClient ={
     println("**********We have swimlane keys***********")
     println("**********We can by-pass creating them**********")
     println("**********we just need to create an MTSDBAdminClient*******************")
     var enableDebugOutput: Boolean = false
-    //val superAdminClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
-    val superAdminClient: MdtsdbClient = new MdtsdbClient("mdtsdb-5.fractal",8080, "", "IkwCmcm3bbPcML", "Ruio4Np5kOa5CT", false)
-    val swimlaneClient: MdtsdbClient = superAdminClient.newAdmClient(swimlaneAppKey,swimLaneSecretKey)
+    val superAdmClient=   new MdtsdbClient("mdtsdb-4.fractal", 8080, "", "Y2DQZRbhZ8DSoq5vu832UgxQfp6Iw/GLsnwBY/pVzSBRDBMBPFIV3MY6ZBbiAKjw", "R4wBIZ6/kFb3kjOC8QgM1X7AyFb2QXmyKmC23TZMYAn9VF7RBwlV", false)
+    val superAdmKeyResponse:JsonObject = superAdmClient.newAdminkey("pfsense_nettraffic")
+    val supAdmKeyResParsed: Parse = new Parse(superAdmKeyResponse)
+    if (!supAdmKeyResParsed.isOk()) {
+      println("error...could not get admKeyResponse...something is wrong")
+      sys.exit(-1)
+    }
+    val clAdmClient: MdtsdbClient = superAdmClient.newAdmClient(clAdmKey.trim(),clSecretKey.trim())
+    println("Creating swimlane client.... ")
+
+    val swimlaneClient = clAdmClient.newClient(slAppKey.trim(),slSecretKey.trim())
     return swimlaneClient
-    //val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
   }
+  def createSwimLaneClient(clAdminKey:String,swlAdminSecretKey:String,swimlaneAppKey:String,swimLaneSecretKey:String): MdtsdbClient ={
+    println("**********We have swimlane keys***********")
+    println("**********We can by-pass creating them**********")
+    println("**********we just need to create an MTSDBAdminClient*******************")
+    var enableDebugOutput: Boolean = false
+    val superAdmClient=   new MdtsdbClient("mdtsdb-4.fractal", 8080, "", "Y2DQZRbhZ8DSoq5vu832UgxQfp6Iw/GLsnwBY/pVzSBRDBMBPFIV3MY6ZBbiAKjw", "R4wBIZ6/kFb3kjOC8QgM1X7AyFb2QXmyKmC23TZMYAn9VF7RBwlV", false)
+    val superAdmKeyResponse:JsonObject = superAdmClient.newAdminkey("pfsense_nettraffic")
+    val supAdmKeyResParsed: Parse = new Parse(superAdmKeyResponse)
+    if (!supAdmKeyResParsed.isOk()) {
+      println("error...could not get admKeyResponse...something is wrong")
+      sys.exit(-1)
+    }
+    val clAdmKey: String = supAdmKeyResParsed.getKey()
+    val clAdmSecretKey: String =supAdmKeyResParsed.getSecretKey()
+    val userDescription: String = supAdmKeyResParsed.getUser()
+    val userAdminClient: MdtsdbClient = superAdmClient.newAdmClient(clAdmKey,clAdmSecretKey)
+    //val swimlanePropsResp: JsonObject = userAdminClient.newAppkey("pfsense_nettraffic",true,true,"pfsense_nettraffic") //6. create sl Json Resp Obj
+    val swimlanePropsResp: JsonObject = userAdminClient.newAppkey("pfsense_nettraffic")
+    val swimlanePropsResParsed: Parse = new Parse(swimlanePropsResp)
+    if (!swimlanePropsResParsed.isOk()) {
+      println("error...could not create SwimLanes for PFsense net traffic...something is wrong")
+      sys.exit(-1)
+    }
+    println("Creating swimlane client.... ")
+    val swimlaneAppKey: String = swimlanePropsResParsed.getKey()  //7. Get swimlane app key
+    val swimlaneSecretKey: String = swimlanePropsResParsed.getSecretKey() //8. Get swimlane secret Key
+    val swimlaneClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
+    return swimlaneClient
+  }
+
+  def createSwimLaneClientTestII(swimlaneAppKey:String,swimLaneSecretKey:String): MdtsdbClient ={
+    println("**********We have swimlane keys***********")
+    println("**********We can by-pass creating them**********")
+    println("**********we just need to create an MTSDBAdminClient*******************")
+    var enableDebugOutput: Boolean = false
+    val masterKey = "Y2DQZRbhZ8DSoq5vu832UgxQfp6Iw/GLsnwBY/pVzSBRDBMBPFIV3MY6ZBbiAKjw"
+    val secretMasterKey = "R4wBIZ6/kFb3kjOC8QgM1X7AyFb2QXmyKmC23TZMYAn9VF7RBwlV"
+    val superAdminClient: MdtsdbClient = new MdtsdbClient("mdtsdb-5.fractal",8080, "", masterKey,secretMasterKey, false)
+    val adminClientRespJsonObj:JsonObject = superAdminClient.newAdminkey("pfsense_nettraffic")
+    val adminClientRespJsonObjParsed:Parse = new Parse(adminClientRespJsonObj)
+    val adminClientKey: String = adminClientRespJsonObjParsed.getKey()
+    val adminClientSecretKey: String = adminClientRespJsonObjParsed.getSecretKey()
+    val adminClientUser: String = adminClientRespJsonObjParsed.getUser()
+    val adminClient:MdtsdbClient = superAdminClient.newAdmClient(adminClientKey,adminClientSecretKey)
+    val swimlanePropsJsonObjResp: JsonObject = adminClient.newAppkey("pfsense_nettraffic")
+    val swimlaneClient = adminClient.newClient(swimlaneAppKey.trim(),swimLaneSecretKey.trim())
+    return swimlaneClient
+  }
+
   def createIpSwimLaneClient(ipAdminKey:String,ipAppKey:String,ipSecretKey:String): MdtsdbClient ={
     println("**********We have swimlane keys***********")
     println("**********We can by-pass creating them**********")
     println("**********we just need to create an MTSDBAdminClient*******************")
-    var enableDebugOutput: Boolean = false
-    //val superAdminClient: MdtsdbClient = MdtsdbCredentials.createClientFromMasterProperties(enableDebugOutput)
     val superAdminClient: MdtsdbClient = new MdtsdbClient("mdtsdb-5.fractal",8080, "", "IkwCmcm3bbPcML", "Ruio4Np5kOa5CT", false)
     val ipSwimlaneClient: MdtsdbClient = superAdminClient.newAdmClient(ipAppKey,ipSecretKey)
     return ipSwimlaneClient
-    //val swimlaneClient: MdtsdbClient = userAdminClient.newClient(swimlaneAppKey,swimlaneSecretKey)
   }
-  def insertIntoSwimLane(client:MdtsdbClient,map:java.util.Map[String,String]): Unit = {
+  def insertIntoSwimLane(swimlaneClient:MdtsdbClient,map:java.util.Map[String,String]): Unit = {
     val keyList: Array[AnyRef] = map.keySet().toArray()
     val valList: Array[AnyRef] = map.values().toArray()
     var unixTime: Long = System.currentTimeMillis() / 1000L
@@ -227,10 +353,32 @@ object MDTSDBUtils {
     val mapLength = map.size()
     for (i <- 0 to (mapLength - 1)) {
       val sensorJsonObj: JsonObject = sensorData.sensor(i).field(keyList(i).toString, valList(i).toString).time(unixTime).build()
-      val statusJsonObj = client.sendStreamingData(sensorJsonObj)
-      // checkArgument(Parse.getStatus(statusJsonObj) == 1, "expect value status in response")
+      val statusJsonObj = swimlaneClient.sendEventsData(sensorJsonObj)
     }
-
+  }
+  def insertIntoSwimLaneTest(swimlaneClient:MdtsdbClient,map:java.util.Map[String,String]): Unit = {
+    val dateTime = map.get("dateTime")
+    val ipSend = map.get("ipSend")
+    val ipRecv = map.get("ipRecv")
+    val protocol = map.get("protocol")
+    val action = map.get("action")
+    val clientPort = map.get("clientPort")
+    val serverPort = map.get("serverPort")
+    var unixTime: Long = System.currentTimeMillis() / 1000L
+    var sensorData: Measurement = new Measurement()
+    val mapLength = map.size()
+    val sesnsorData = new Measurement()
+      .sensor(0)
+      .field("dateTime",dateTime)
+      .field("ipSend",ipSend)
+      .field("ipRecv",ipRecv)
+      .field("protocol",protocol)
+      .field("action",action)
+      .field("clientPort",clientPort)
+      .field("serverPort",serverPort)
+      .time(unixTime)
+      .build()
+    val status = swimlaneClient.sendEventsData(sesnsorData)
   }
   def insertIpIntoSwimLane(client:MdtsdbClient,map:java.util.Map[String,String]): Unit = {
     val ipSend = map.get("ipSend")
@@ -239,13 +387,6 @@ object MDTSDBUtils {
     val clientPort = map.get("clientPort")
     val serverPort = map.get("serverPort")
     val externHost = ipSend + ":" + clientPort
-
-    /*
-      1. need swimlane name: pfsense_nettraffic_10.5.6.1
-      2. insert into sensor $0
-      3. ^^using admin and secret key
-
-     */
     val keyList: Array[AnyRef] = map.keySet().toArray()
     val valList: Array[AnyRef] = map.values().toArray()
     var unixTime: Long = System.currentTimeMillis() / 1000L
@@ -254,7 +395,6 @@ object MDTSDBUtils {
     for (i <- 0 to (mapLength - 1)) {
       val sensorJsonObj: JsonObject = sensorData.sensor(i).field(keyList(i).toString, valList(i).toString).time(unixTime).build()
       val statusJsonObj = client.sendStreamingData(sensorJsonObj)
-      // checkArgument(Parse.getStatus(statusJsonObj) == 1, "expect value status in response")
     }
   }
 
@@ -264,5 +404,4 @@ object MDTSDBUtils {
   def checkPFSenseInternalIpSwimLane(): Boolean ={
     return false
   }
-
 }

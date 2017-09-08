@@ -1,16 +1,9 @@
+package com.fractal.pfsense.etl.pfsense_nettraffic
 import java.util
 import java.util.HashMap
 import java.util.Map;
-
-
 /**
-  * Created by mikeyb on 7/31/17.
-  *
-  * mdtsdb-1.fractal:8080
-    mdtsdb-2.fractal:8080
-    mdtsdb-3.fractal:8080
-    mdtsdb-4.fractal:8080
-    mdtsdb-5.fractal:8080
+  * Created by mdb on 8/21/17.
   */
 object PFSenseParser {
   def parseRecordToStr(record:String):Option[String]= {
@@ -134,13 +127,6 @@ object PFSenseParser {
       recordMap.put("ipSend",ipList(0))
       recordMap.put("ipRecv",ipList(1))
     })
-    /*
-    port.foreach(_ => {
-      val portList = port.get
-      recordMap.put("portSend",portList(portList.length - 3 ))
-      recordMap.put("ipRecv",portList(portList.length - 2 ))
-    })
-    */
     port.map( _ => {
       val strLst: Array[String] = port.get.split(",")
       val clientPort: String = strLst(2).replaceAll("""(?m)\s+$""", "")

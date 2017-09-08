@@ -1,4 +1,11 @@
 [keys]
+admin = nk8tR2oHGWbljO
+admin_secret = VXKRnShR45DdxH
+app = ShriLi4siF
+secret = t6uaDdZDC0I4qg
+
+
+[keys_old]
 admin = IkwCmcm3bbPcML
 admin_secret = Ruio4Np5kOa5CT
 app = JkPglj9mwO
